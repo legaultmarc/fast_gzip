@@ -3,29 +3,59 @@
 import gzip
 import fgzip
 import time
+import os
 
-for i in xrange(6):
-    if i < -1:#3:
-        # Use gzip.
-        t1 = time.time()
-        j = 0
-        with gzip.open('temp.fa.gz') as f:
-            for line in f:
-                j += 1
-        
-        t2 = time.time()
-        print "Using stdlib gzip, {} lines in {:.4f}s".format(j, t2 - t1)
+def benchmark(n = 6):
 
-    else:
-        # Use fgzip.
-        t1 = time.time()
-        j = 0
-        with fgzip.open('temp.fa.gz') as f:
-            for line in f:
-                print line
-                quit()
-                j += 1
-        
-        t2 = time.time()
-        print "Using fast gzip, {} lines in {:.4f}s".format(j, t2 - t1)
+    print "READ BENCHMARK"
+    for i in xrange(n):
+        if i < n / 2:
+            # Use gzip.
+            t1 = time.time()
+            j = 0
+            with gzip.open('test_files/compressed.fa.gz') as f:
+                for line in f:
+                    j += 1
+            
+            t2 = time.time()
+            print "\tUsing stdlib gzip, {} lines in {:.4f}s".format(j, t2 - t1)
 
+        else:
+            # Use fgzip.
+            t1 = time.time()
+            j = 0
+            with fgzip.open('test_files/compressed.fa.gz') as f:
+                for line in f:
+                    j += 1
+            
+            t2 = time.time()
+            print "\tUsing fast gzip, {} lines in {:.4f}s".format(j, t2 - t1)
+
+    print "WRITE BENCHMARK"
+    for i in xrange(n):
+        if i < n / 2:
+            # Use gzip.
+            t1 = time.time()
+            with open('test_files/text.fa') as f:
+                with gzip.open('.fgzip_benchmark.txt.gz', 'wb') as f2:
+                    for line in f:
+                        f2.write(line)
+
+            t2 = time.time()
+            print "\tUsing stdlib gzip, compressed in {:.4f}s".format(t2 - t1)
+
+        else:
+            # Use fgzip.
+            t1 = time.time()
+            with open('test_files/text.fa') as f:
+                with fgzip.open('.fgzip_benchmark.txt.gz', 'wb') as f2:
+                    for line in f:
+                        f2.write(line)           
+
+            t2 = time.time()
+            print "\tUsing fast gzip, compressed in {:.4f}s".format(t2 - t1)
+
+    os.remove('.fgzip_benchmark.txt.gz')
+
+if __name__ == "__main__":
+     benchmark()
