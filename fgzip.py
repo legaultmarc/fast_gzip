@@ -2,6 +2,13 @@
 
 import subprocess
 import os.path
+from signal import signal, SIGPIPE, SIG_DFL
+
+settings = None
+try:
+    import settings
+except ImportError:
+    pass
 
 STDLIB_OPEN = open
 
@@ -22,17 +29,32 @@ class GzipFile():
         # We need to create either the input buffer, which will be
         # built on top of a zcat process, or the output buffer, which will
         # build on a gzip process.
+        self.launch_subprocesses()
+
+    def reset(self):
+        self.close()
+        self.launch_subprocesses()
+
+    def launch_subprocesses(self):
         if self.mode == 'r':
+            if settings:
+                zcat = settings.ZCAT_BIN
+            else:
+                zcat = 'zcat'
             self.read_process = subprocess.Popen(
-                # FIXME Change to zcat after dev.
-                ['gzcat', self.fn], 
+                [zcat, self.fn], 
                 stdout=subprocess.PIPE,
-                bufsize = GzipFile.BUFSIZE
+                bufsize = GzipFile.BUFSIZE,
+                preexec_fn = lambda: signal(SIGPIPE, SIG_DFL)
             )
 
         if self.mode == 'w':
+            if settings:
+                gzip = settings.GZIP_BIN
+            else:
+                gzip = 'gzip'
             self.write_process = subprocess.Popen(
-                'gzip -c > {}'.format(self.fn),
+                '{} -c > {}'.format(gzip, self.fn),
                 shell=True,
                 stdin=subprocess.PIPE,
                 bufsize = GzipFile.BUFSIZE
@@ -65,6 +87,19 @@ class GzipFile():
          
     def next(self):
         pass
+
+    def close(self):
+        if self.mode == 'w':
+            self.write_process.stdin.close()
+        elif self.mode == 'r':
+            self.read_process.terminate()
+
+    def seek(self, pos = 0):
+        if pos != 0:
+            raise Exception(("fgzip can't seek to arbitrary positions, only "
+                             "seek(0) is allowed."))
+
+        self.reset()
 
 def open(fn, mode='r'):
     return GzipFile(fn, mode)
@@ -149,10 +184,26 @@ def test():
         sh.rm(i)
     print s
 
+    # Check seek
+    test_file = 'test_files/compressed.fa.gz'
+    l1 = None
+    l2 = None 
+
+    s = 'Seek to 0 test '
+    with open(test_file) as f:
+        l1 = f.readline()
+        l2 = f.readline()
+        f.seek(0)
+        if l1 == f.readline() and l2 == f.readline():
+            s += '[PASS]'
+        else:
+            s += '[FAIL]'
+    print s
+
     # Run benchmarks
     print
     print 'Running speed benchmarks...'
-    benchmarks.benchmark()
+    #benchmarks.benchmark()
 
 if __name__ == "__main__":
     test()
