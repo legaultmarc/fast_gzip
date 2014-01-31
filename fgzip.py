@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 import subprocess
+import os
 import os.path
-from signal import signal, SIGPIPE, SIG_DFL
+import __builtin__
+import signal as sig
 
 settings = None
 try:
     import settings
 except ImportError:
     pass
-
-STDLIB_OPEN = open
 
 class GzipFile():
     BUFSIZE = 4096 * 1000
@@ -23,7 +23,7 @@ class GzipFile():
 
         # Create the file if it does not exist.
         if not os.path.isfile(fn):
-            with STDLIB_OPEN(fn, 'w') as f:
+            with __builtin__.open(fn, 'w') as f:
                 pass
 
         # We need to create either the input buffer, which will be
@@ -41,11 +41,13 @@ class GzipFile():
                 zcat = settings.ZCAT_BIN
             else:
                 zcat = 'zcat'
+
             self.read_process = subprocess.Popen(
-                [zcat, self.fn], 
+                "{} {}".format(zcat, self.fn),
                 stdout=subprocess.PIPE,
                 bufsize = GzipFile.BUFSIZE,
-                preexec_fn = lambda: signal(SIGPIPE, SIG_DFL)
+                preexec_fn = lambda: sig.signal(sig.SIGPIPE, sig.SIG_DFL),
+                shell=True
             )
 
         if self.mode == 'w':
@@ -53,6 +55,7 @@ class GzipFile():
                 gzip = settings.GZIP_BIN
             else:
                 gzip = 'gzip'
+
             self.write_process = subprocess.Popen(
                 '{} -c > {}'.format(gzip, self.fn),
                 shell=True,
@@ -73,7 +76,7 @@ class GzipFile():
         if line == '':
             return None
         else:
-            return line.rstrip('\r\n')
+            return line
 
     def __iter__(self):
         return iter(self.read_process.stdout.readline, '')
@@ -82,6 +85,7 @@ class GzipFile():
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
         if hasattr(self, 'write_process'):
             self.write_process.communicate()
          
@@ -91,8 +95,10 @@ class GzipFile():
     def close(self):
         if self.mode == 'w':
             self.write_process.stdin.close()
+            while self.write_process.poll() is None:
+                pass
         elif self.mode == 'r':
-            self.read_process.terminate()
+            self.read_process.communicate()
 
     def seek(self, pos = 0):
         if pos != 0:
@@ -141,12 +147,12 @@ def test():
     # Check reading
     test_file = 'test_files/compressed.fa.gz'
 
-    with STDLIB_OPEN(temp_std, 'wb') as out:
+    with __builtin__.open(temp_std, 'wb') as out:
         with gzip.open(test_file) as f:
             for line in f:
                 out.write(line)
 
-    with STDLIB_OPEN(temp_fgz, 'wb') as out:
+    with __builtin__.open(temp_fgz, 'wb') as out:
         with GzipFile(test_file) as f:
             for line in f:
                 out.write(line)
@@ -164,12 +170,12 @@ def test():
     # Check writing
     test_file = 'test_files/text.fa'
 
-    with STDLIB_OPEN(test_file) as f:
+    with __builtin__.open(test_file) as f:
         with gzip.open(temp_std, 'wb') as out:
             for line in f:
                 out.write(line)
 
-    with STDLIB_OPEN(test_file) as f:
+    with __builtin__.open(test_file) as f:
         with GzipFile(temp_fgz, 'wb') as out:
             for line in f:
                 out.write(line)   
@@ -203,7 +209,7 @@ def test():
     # Run benchmarks
     print
     print 'Running speed benchmarks...'
-    #benchmarks.benchmark()
+    benchmarks.benchmark()
 
 if __name__ == "__main__":
     test()
