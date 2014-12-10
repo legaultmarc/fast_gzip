@@ -1,4 +1,4 @@
 *.pyc
 *.swp
-temp*
-settings.py
+dist
+*.egg-info
