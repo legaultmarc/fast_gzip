@@ -19,105 +19,95 @@ __email__ = "legaultmarc@gmail.com"
 __status__ = "Development"
 
 
-import io
 import gzip
-import argparse
+
+from functools import wraps
+from itertools import chain
 from multiprocessing import Process, Queue
 
-
 class GzipFileReader(object):
+    """
+    An iterable, file-like object that supports
+    fast line-based reads of a GZIPed file.
+    This does not support the full BufferedIOBase API.
+    """
 
-    def __init__(self, fn, chunk_size=128 * 1024):
-        self.fn = fn
-        self._q = Queue(3)
-        self._reader_started = False
-        self.chunk_size = chunk_size
+    def __init__(self, filename, chunk_size=128 * 1024):
+        self._filename = filename
+        self._chunk_queue = Queue(3)
+        self._chunk_size = chunk_size
+
+        self._iterator = chain.from_iterable(self._parser())
 
         # Start process and create the iterator.
+        # Do this last to prevent exceptions in
+        # the constructor from leaving hanging resources.
+        #
+        # This ignores the queue, but that's not
+        # really worth worrying about if it's empty.
         self._reader_proc = Process(target=self._reader_proc)
         self._reader_proc.start()
-        self._reader_started = True
-
-        self._iterator = self._parser()
-
-    def readline(self):
-        for line in self._iterator:
-            return line
 
     def _reader_proc(self):
         try:
-            with gzip.open(self.fn) as f:
-                chunk = f.read(self.chunk_size)
-                while chunk:
-                    self._q.put(chunk)
-                    chunk = f.read(self.chunk_size)
+            with gzip.open(self._filename) as f:
+                while True:
+                    chunk = f.read(self._chunk_size)
 
-            self._q.put(None)
-            self._q.close()
-            return
+                    if not chunk:
+                        return
 
-        except KeyboardInterrupt:
-            self._q.close()
-            return
+                    self._chunk_queue.put(chunk)
+
+        finally:
+            self._chunk_queue.put(None)
+            self._chunk_queue.close()
 
     def _parser(self):
-        fragment = ""
-        chunk = self._q.get()
+        line_start = None
 
-        # new line character is different between python 2.x and 3.x (bytes vs
-        # string)
-        new_line = "\n"
-        if isinstance(chunk[0], int):
-            new_line = 10
+        while True:
+            chunk = self._chunk_queue.get()
 
-        while chunk is not None:
+            if chunk is None:
+                break
+
             # Split in lines.
             li = chunk.splitlines()
 
-            # If there was a previous fragment, we prepend the first line.
-            if fragment != "":
-                li[0] = fragment + li[0]
-                fragment = ""
+            # If there was a previous line_start, we prepend the first line.
+            if line_start is not None:
+                li[0] = line_start + li[0]
+                line_start = None
 
             # Maybe the chunk didn't end with a newline.
-            # We keep this (new) fragment.
-            if not chunk[-1] == new_line:
-                fragment = li[-1]
-                li = li[:-1]
+            # We keep this (new) line_start.
+            if not chunk.endswith(b"\n"):
+                line_start = li.pop()
 
-            for elem in li:
-                # Generate line by line
-                yield elem
+            yield li
 
-            chunk = self._q.get()
-
-        if fragment:
-            yield fragment 
-
-    # Methods for the generator interface.
-    def next(self):
-        for i in self._iterator:
-            break
+        if line_start:
+            yield [line_start]
 
     def __next__(self):
-        return self.next()
+        return next(self._iterator)
 
+    readline = __next__
+
+    # Return self._iterator instead of self for faster iteration;
+    # is should be very rare for "iter(x) is x" to be required.
     def __iter__(self):
         return self._iterator
 
-    # Methods for the context manager interface.
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        # Kill the reader process.
+        # Stop the reader process.
         if self._reader_proc.is_alive():
             self._reader_proc.terminate()
 
-
-def open(fn, chunk_size=None):
-    if chunk_size is not None:
-        return GzipFileReader(fn, chunk_size)
-    else:
-        return GzipFileReader(fn)
-
+# Alias GzipFileReader
+open = wraps(GzipFileReader)(lambda *args: GzipFileReader(*args))
+open.__name__ = "open"
