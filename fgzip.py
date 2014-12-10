@@ -51,21 +51,20 @@ class GzipFileReader(object):
         self.fn = fn
         self._q = Queue(3)
         self._reader_started = False
-        self._fragment = ""
         self.chunk_size = chunk_size
 
-    def readline(self):
-        # Check if reader started.
-        if not self._reader_started:
-            # Start the process
-            self._reader_proc = Process(target=self._reader_proc)
-            self._reader_proc.start()
-            self._reader_started = True
+        # Start process and create the iterator.
+        self._reader_proc = Process(target=self._reader_proc)
+        self._reader_proc.start()
+        self._reader_started = True
 
-        return self._parser.next()
+        self._iterator = self._parser()
+
+    def readline(self):
+        for line in self._iterator:
+            return line
 
     def _reader_proc(self):
-        print "Started reader process"
         with gzip.open(self.fn) as f:
             chunk = f.read(self.chunk_size)
             while chunk:
