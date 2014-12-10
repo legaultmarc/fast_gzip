@@ -26,6 +26,16 @@ from multiprocessing import Process, Queue
 class GzipFileReader(object):
 
     def __init__(self, fn, chunk_size=128 * 1024):
+        """Initialize a GzipFileReader object.
+
+        :param fn: the name of the gzip file
+        :type fn: str
+
+        :param chunk_size: the size of the chunk to read from the gzipped file
+                           (in bytes).
+        :type chunk_size: int
+
+        """
         self.fn = fn
         self._q = Queue(3)
         self._reader_started = False
@@ -39,10 +49,12 @@ class GzipFileReader(object):
         self._iterator = self._parser()
 
     def readline(self):
+        """Reads one line from the gzipped file."""
         for line in self._iterator:
             return line
 
     def _reader_proc(self):
+        """The reader process that reads a chunk from the gzipped file."""
         try:
             with gzip.open(self.fn) as f:
                 chunk = f.read(self.chunk_size)
@@ -59,6 +71,7 @@ class GzipFileReader(object):
             return
 
     def _parser(self):
+        """The parser that reads the chunks from a Queue object."""
         fragment = ""
         chunk = self._q.get()
 
@@ -92,28 +105,44 @@ class GzipFileReader(object):
         if fragment:
             yield fragment 
 
-    # Methods for the generator interface.
     def next(self):
+        """For the generator interface."""
         for i in self._iterator:
             break
 
     def __next__(self):
+        """For the generator interface."""
         return self.next()
 
     def __iter__(self):
+        """For the generator interface."""
         return self._iterator
 
-    # Methods for the context manager interface.
     def __enter__(self):
+        """For the context manager interface."""
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """For the context manager interface."""
         # Kill the reader process.
         if self._reader_proc.is_alive():
             self._reader_proc.terminate()
 
 
 def open(fn, chunk_size=None):
+    """Opens a new gzipped file using GzipFileReader.
+
+    :param fn: the name of the gzip file
+    :type fn: str
+
+    :param chunk_size: the size of the chunk to read from the gzipped file
+                        (in bytes).
+    :type chunk_size: int
+
+    :returns: a gzipped file parser.
+    :rtype: :py:class:`GzipFileReader`
+
+    """
     if chunk_size is not None:
         return GzipFileReader(fn, chunk_size)
     else:
