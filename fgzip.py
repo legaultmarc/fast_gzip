@@ -19,9 +19,7 @@ __email__ = "legaultmarc@gmail.com"
 __status__ = "Development"
 
 
-import io
 import gzip
-import argparse
 from multiprocessing import Process, Queue
 
 
