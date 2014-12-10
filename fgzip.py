@@ -1,9 +1,29 @@
 #!/usr/bin/env python
 
+# This file is part of fgzip
+#
+# This work is licensed under the Creative Commons Attribution-NonCommercial
+# 4.0 International License. To view a copy of this license, visit
+# http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to Creative
+# Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+
+__author__ = "Marc-Andre Legault"
+__copyright__ = ("Copyright 2014 Marc-Andre Legault and Louis-Philippe Lemieux "
+                 "Perreault. All rights reserved.")
+__license__ = "Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)"
+__credits__ = ["Marc-Andre Legault", "Louis-Philippe Lemieux Perreault"]
+__version__ = "0.1"
+__maintainer__ = "Marc-Andre Legault"
+__email__ = "legaultmarc@gmail.com"
+__status__ = "Development"
+
+
 import io
 import gzip
 import argparse
 from multiprocessing import Process, Queue
+
 
 class GzipFileReader(object):
 
@@ -43,6 +63,13 @@ class GzipFileReader(object):
     def _parser(self):
         fragment = ""
         chunk = self._q.get()
+
+        # new line character is different between python 2.x and 3.x (bytes vs
+        # string)
+        new_line = "\n"
+        if isinstance(chunk[0], int):
+            new_line = 10
+
         while chunk is not None:
             # Split in lines.
             li = chunk.splitlines()
@@ -54,7 +81,7 @@ class GzipFileReader(object):
 
             # Maybe the chunk didn't end with a newline.
             # We keep this (new) fragment.
-            if not chunk.endswith("\n"):
+            if not chunk[-1] == new_line:
                 fragment = li[-1]
                 li = li[:-1]
 

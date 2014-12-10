@@ -1,5 +1,5 @@
 *.pyc
 *.swp
-temp*
-settings.py
 .ipynb_checkpoints
+dist
+*.egg-info
