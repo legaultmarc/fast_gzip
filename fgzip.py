@@ -73,7 +73,7 @@ class GzipFileReader(object):
                 break
 
             # Split in lines.
-            li = chunk.splitlines(keepends=True)
+            li = chunk.splitlines(True)
 
             # If there was a previous line_start, we prepend the first line.
             if line_start is not None:
@@ -111,3 +111,4 @@ class GzipFileReader(object):
 # Alias GzipFileReader
 open = wraps(GzipFileReader)(lambda *args: GzipFileReader(*args))
 open.__name__ = "open"
+
